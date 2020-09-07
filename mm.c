@@ -102,3 +102,49 @@ vm_page_family_t * lookup_page_family_by_name(char *struct_name){
     } 
     return NULL;  
 }
+static void mm_union_free_blocks(block_meta_data_t* first,block_meta_data_t* second){
+    if(first->is_free != MM_TRUE || second->is_free != MM_TRUE){
+        printf("Error! Some blocks being merged are not free\n");
+        assert(0);
+    }
+    first->next = second->next;
+    if(second->next){
+        first->next->previous = first;
+    }
+    first->block_size += second->block_size+sizeof(block_meta_data_t);
+}
+// uint32_t free_blocks = 0;
+// uint32_t occupied_blocks = 0;
+// uint32_t max_free_block_size = 0;
+// uint32_t max_occupied_block_size = 0; 
+// char is_previous_free = 0;
+// void* max_free_block;
+// void* max_occupied_block;
+// for(block_meta_data_t * current_block = first_meta_block;
+//     current_block != NULL;
+//     current_block = current_block->next){
+//     if(current_block->is_free == MM_TRUE){
+//         if(is_previous_free == 1){
+//             assert(0);
+//         }
+//         is_previous_free = 1;
+//         free_blocks++;
+//         if(current_block->block_size > max_free_block_size){
+//             max_free_block_size = current_block->block_size;
+//             max_free_block = (void*)current_block+1;
+//         }
+//     }
+//     else{
+//         occupied_blocks++;
+//         is_previous_free = 0;
+//         if(current_block->block_size > max_occupied_block_size){
+//             max_occupied_block_size = current_block->block_size;
+//             max_occupied_block = (void*)current_block+1;
+//         }
+//     }
+
+//     if(current_block->block_size < min_block_size){
+//         min_block_size = current_block->block_size;
+//         min_block = (void*)current_block+1;
+//     }
+// }
