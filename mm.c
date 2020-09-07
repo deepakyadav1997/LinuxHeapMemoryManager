@@ -44,10 +44,10 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
     if(!first_vm_page_for_families){ // First vm page is null,request new page.
         first_vm_page_for_families = (vm_page_for_families_t*)mm_get_new_vm_page_from_kernel(1);
         first_vm_page_for_families->next = NULL;
-        strncpy(first_vm_page_for_families->vm_page_family->struct_name,
+        strncpy(first_vm_page_for_families->vm_page_family[0].struct_name,
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
-        first_vm_page_for_families->vm_page_family->struct_size = size;
+        first_vm_page_for_families->vm_page_family[0].struct_size = size;
         return;
     }
     uint32_t page_family_count = 0;
@@ -63,13 +63,14 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
         new_vm_page_for_families = (vm_page_for_families_t*)mm_get_new_vm_page_from_kernel(1);
         new_vm_page_for_families->next = first_vm_page_for_families;
         first_vm_page_for_families = new_vm_page_for_families;
-        strncpy(first_vm_page_for_families->vm_page_family->struct_name,
+        strncpy(first_vm_page_for_families->vm_page_family[0].struct_name,
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
-        first_vm_page_for_families->vm_page_family->struct_size = size;
+        first_vm_page_for_families->vm_page_family[0].struct_size = size;
         return;
     }
-    else{ // copy the data to current pointer of the looping macro as it will point to the next blank place in the page
+    else{ // copy the data to current pointer of the looping macro as it will 
+          //point to the next blank place in the page
         strncpy(vm_page_family_current->struct_name,
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
@@ -77,12 +78,27 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
         return;
     }
 }
-//testing our functions
-int main(int argc,char** argv){
-    mm_init();
-    printf("System Page size = %d\n",SYSTEM_PAGE_SIZE);
-    void* address1 = mm_get_new_vm_page_from_kernel(1);
-    void* address2 = mm_get_new_vm_page_from_kernel(1);
-    printf("Address 1 = %p \t Address 2 = %p\n",address1,address2);
-    return 0;
+void mm_print_registered_page_families(){
+    vm_page_for_families_t *current_page = first_vm_page_for_families;
+    vm_page_family_t *current_family = NULL;
+    while(current_page){
+        ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
+            printf("Struct name: %s Struct size: %d\n",current_family->struct_name,
+                   current_family->struct_size);
+        }ITERATE_PAGE_FAMILIES_END;
+        current_page = current_page->next;
+    }
+}
+vm_page_family_t * lookup_page_family_by_name(char *struct_name){
+     vm_page_for_families_t *current_page = first_vm_page_for_families;
+    vm_page_family_t *current_family = NULL;
+    while(current_page){
+        ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
+            if(strcmp(current_family->struct_name,struct_name) == 0){
+                return current_family;
+            }
+        }ITERATE_PAGE_FAMILIES_END;
+        current_page = current_page->next;
+    } 
+    return NULL;  
 }

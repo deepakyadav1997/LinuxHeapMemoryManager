@@ -21,7 +21,7 @@ typedef struct  vm_page_family_{
 
 typedef struct vm_page_for_families{
     struct vm_page_for_families *next;  // pointer to the next page
-    vm_page_family_t *vm_page_family;   //pointer to the array that stores the struct data
+    vm_page_family_t vm_page_family[0];   //pointer to the array that stores the struct data
 }vm_page_for_families_t;
 
 #endif
