@@ -8,6 +8,7 @@ exe:mm.o testapp.o
 
 clean:
 	rm -f *.o
+	rm -f exe
 	
 
 	 

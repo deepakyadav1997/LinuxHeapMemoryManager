@@ -113,6 +113,50 @@ static void mm_union_free_blocks(block_meta_data_t* first,block_meta_data_t* sec
     }
     first->block_size += second->block_size+sizeof(block_meta_data_t);
 }
+vm_bool_t mm_is_vm_page_empty(vm_page_t* vm_page){
+    if(vm_page->block_meta_data.is_free == MM_TRUE
+       && vm_page->block_meta_data.next == NULL
+       && vm_page->block_meta_data.previous == NULL){
+           return MM_TRUE;
+       }
+       return MM_FALSE;
+}
+
+static inline uint32_t mm_max_page_allocatable_memory(int units){
+    return (uint32_t)((SYSTEM_PAGE_SIZE*units)-offset_of(vm_page_t,page_memory));
+}
+
+vm_page_t* allocate_vm_page(vm_page_family_t* vm_page_family){
+    vm_page_t* new_vm_page = (vm_page_t*)mm_get_new_vm_page_from_kernel(1);
+    /*Initialize the new page*/
+    MARK_VM_PAGE_EMPTY(new_vm_page);
+    new_vm_page->block_meta_data.block_size = mm_max_page_allocatable_memory(1);
+    new_vm_page->block_meta_data.offset = offset_of(vm_page_t,block_meta_data);
+    new_vm_page->previous = NULL;
+    new_vm_page->next = NULL;
+    new_vm_page->page_family = vm_page_family;
+    if(vm_page_family->first_page != NULL){
+        new_vm_page->next = vm_page_family->first_page;
+        vm_page_family->first_page->previous = new_vm_page;
+    }
+    vm_page_family->first_page = new_vm_page;;
+    return new_vm_page;
+}
+void mm_vm_page_delete_and_free(vm_page_t* vm_page){
+    vm_page_t* previous = vm_page->previous;
+    vm_page_t* next = vm_page->next;
+    vm_page_family_t *page_family = vm_page->page_family;
+    if(page_family->first_page == vm_page){
+        page_family->first_page = page_family->first_page->next;
+    }
+    if(previous != NULL){
+        previous->next = next;
+    }
+    if(next != NULL){
+        next->previous = previous;
+    }
+    mm_return_vm_page_to_kernel((void*)vm_page,1);
+}
 // uint32_t free_blocks = 0;
 // uint32_t occupied_blocks = 0;
 // uint32_t max_free_block_size = 0;
