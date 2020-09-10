@@ -48,6 +48,7 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
         first_vm_page_for_families->vm_page_family[0].struct_size = size;
+        init_glthread(&first_vm_page_for_families->vm_page_family[0].free_blocks_queue_head); //initializing head of the list
         return;
     }
     uint32_t page_family_count = 0;
@@ -67,6 +68,7 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
         first_vm_page_for_families->vm_page_family[0].struct_size = size;
+        init_glthread(&first_vm_page_for_families->vm_page_family[0].free_blocks_queue_head);
         return;
     }
     else{ // copy the data to current pointer of the looping macro as it will 
@@ -75,6 +77,7 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
                 struct_name,MM_MAX_STRUCT_NAME_SIZE
         );
         vm_page_family_current->struct_size = size;
+        init_glthread(&vm_page_family_current->free_blocks_queue_head);
         return;
     }
 }
@@ -135,6 +138,7 @@ vm_page_t* allocate_vm_page(vm_page_family_t* vm_page_family){
     new_vm_page->previous = NULL;
     new_vm_page->next = NULL;
     new_vm_page->page_family = vm_page_family;
+    init_glthread(&new_vm_page->block_meta_data.priority_queue_node);
     if(vm_page_family->first_page != NULL){
         new_vm_page->next = vm_page_family->first_page;
         vm_page_family->first_page->previous = new_vm_page;
@@ -156,6 +160,26 @@ void mm_vm_page_delete_and_free(vm_page_t* vm_page){
         next->previous = previous;
     }
     mm_return_vm_page_to_kernel((void*)vm_page,1);
+}
+
+static int blocks_comparision_function(void* block1,void* block2){
+    block_meta_data_t* meta_block1 = (block_meta_data_t*) block1;
+    block_meta_data_t* meta_block2 = (block_meta_data_t*) block2;
+    return meta_block1->block_size - meta_block2->block_size;
+}
+
+static void add_free_meta_data_block_to_free_block_list(vm_page_family_t* vm_page_family,
+                                                        block_meta_data_t* free_block){
+    assert(free_block->is_free = MM_TRUE);
+    glthread_priority_insert(vm_page_family->free_blocks_queue_head,
+                            &free_block->priority_queue_node,
+                            blocks_comparision_function,
+                            offset_of(block_meta_data_t,priority_queue_node));                                  
+}
+
+static inline block_meta_data_t* mm_get_biggest_free_block_page_family(vm_page_family_t* vm_page_family){
+    // will return either the first block,i.e largest or null if empty
+    return vm_page_family->free_blocks_queue_head.right;
 }
 // uint32_t free_blocks = 0;
 // uint32_t occupied_blocks = 0;

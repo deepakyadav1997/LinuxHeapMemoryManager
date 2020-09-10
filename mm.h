@@ -2,6 +2,7 @@
 #ifndef __MM__
 #define __MM__
 #define MM_MAX_STRUCT_NAME_SIZE 64
+#include "glthreads_lib/glthread.h"
 
 typedef enum{
     MM_FALSE,
@@ -10,7 +11,7 @@ typedef enum{
 
 struct vm_page;
 
-#define MAX_FAMILIES_PER_VM_PAGE \
+#define MAX_FAMILIES_PER_VM_PAGE                                                      \
     (SYSTEM_PAGE_SIZE - sizeof(vm_page_for_families_t *))/(sizeof(vm_page_family_t))
 
 #define ITERATE_PAGE_FAMILIES_BEGIN(vm_page_for_families_ptr,current)                 \
@@ -64,10 +65,12 @@ struct vm_page;
         next = NEXT_META_BLOCK(current);
 
  #define ITERATE_VM_PAGES_ALL_BLOCKS_END }}  
+
 typedef struct  vm_page_family_{
     char struct_name[MM_MAX_STRUCT_NAME_SIZE];
     uint32_t struct_size;
     struct vm_page* first_page;
+    glthread_t free_blocks_queue_head;
 }vm_page_family_t;
 
 typedef struct vm_page_for_families{
@@ -80,8 +83,11 @@ typedef struct block_meta_data{
     uint32_t block_size;
     struct block_meta_data *next;
     struct block_meta_data *previous;
+    glthread_t priority_queue_node;
     uint32_t offset;
 }block_meta_data_t;
+
+GLTHREAD_TO_STRUCT(glthread_to_block_meta_data,block_meta_data_t,glthread_ptr);
 
 typedef struct vm_page{
     struct vm_page* previous;
