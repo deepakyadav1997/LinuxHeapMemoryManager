@@ -5,6 +5,7 @@
 #include<sys/mman.h>    //for mmap()
 #include<assert.h>
 #include "mm.h"
+#include "glthreads_lib/glthread.h"
 
 static size_t SYSTEM_PAGE_SIZE = 0;
 static vm_page_for_families_t *first_vm_page_for_families = NULL;
@@ -171,7 +172,7 @@ static int blocks_comparision_function(void* block1,void* block2){
 static void add_free_meta_data_block_to_free_block_list(vm_page_family_t* vm_page_family,
                                                         block_meta_data_t* free_block){
     assert(free_block->is_free = MM_TRUE);
-    glthread_priority_insert(vm_page_family->free_blocks_queue_head,
+    glthread_priority_insert(&vm_page_family->free_blocks_queue_head,
                             &free_block->priority_queue_node,
                             blocks_comparision_function,
                             offset_of(block_meta_data_t,priority_queue_node));                                  
@@ -179,40 +180,122 @@ static void add_free_meta_data_block_to_free_block_list(vm_page_family_t* vm_pag
 
 static inline block_meta_data_t* mm_get_biggest_free_block_page_family(vm_page_family_t* vm_page_family){
     // will return either the first block,i.e largest or null if empty
-    return vm_page_family->free_blocks_queue_head.right;
+    if(vm_page_family->free_blocks_queue_head.right)
+        return glthread_to_block_meta_data(vm_page_family->free_blocks_queue_head.right);
+    else 
+        return NULL;
 }
-// uint32_t free_blocks = 0;
-// uint32_t occupied_blocks = 0;
-// uint32_t max_free_block_size = 0;
-// uint32_t max_occupied_block_size = 0; 
-// char is_previous_free = 0;
-// void* max_free_block;
-// void* max_occupied_block;
-// for(block_meta_data_t * current_block = first_meta_block;
-//     current_block != NULL;
-//     current_block = current_block->next){
-//     if(current_block->is_free == MM_TRUE){
-//         if(is_previous_free == 1){
-//             assert(0);
-//         }
-//         is_previous_free = 1;
-//         free_blocks++;
-//         if(current_block->block_size > max_free_block_size){
-//             max_free_block_size = current_block->block_size;
-//             max_free_block = (void*)current_block+1;
-//         }
-//     }
-//     else{
-//         occupied_blocks++;
-//         is_previous_free = 0;
-//         if(current_block->block_size > max_occupied_block_size){
-//             max_occupied_block_size = current_block->block_size;
-//             max_occupied_block = (void*)current_block+1;
-//         }
-//     }
 
-//     if(current_block->block_size < min_block_size){
-//         min_block_size = current_block->block_size;
-//         min_block = (void*)current_block+1;
+static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t* vm_page_family,
+                                                        block_meta_data_t* block,
+                                                        uint32_t size){
+                                                    
+    block_meta_data_t* new_block = NULL;
+    assert(block->is_free == MM_TRUE);
+    if(block->block_size < size){
+        return MM_FALSE;
+    }
+    uint32_t remaining_size = block->block_size - size;
+    block->is_free = MM_FALSE;
+    block->block_size = size;
+    remove_glthread(&block->priority_queue_node);
+
+    // Case 1: No split
+    if(remaining_size == 0){
+        return MM_TRUE;
+    }
+    // Case 3: partial internal fragmentation, soft spilt
+    if(sizeof(block_meta_data_t) < remaining_size 
+            && remaining_size < sizeof(block_meta_data_t) + vm_page_family->struct_size){
+        // New metablock
+        new_block = NEXT_META_BLOCK_BY_SIZE(block);
+        new_block->block_size = remaining_size - sizeof(block_meta_data_t);
+        new_block->is_free = MM_TRUE;
+        new_block->next = block->next;
+        new_block->previous = block;
+        block->next = new_block;
+        if(new_block->next){
+            new_block->next->previous = new_block;
+        }
+        new_block->offset = block->offset + sizeof(block_meta_data_t) + block->block_size;
+        add_free_meta_data_block_to_free_block_list(vm_page_family,new_block);
+        
+    }   
+    //case 3: hard split
+    else if(sizeof(block_meta_data_t) > remaining_size){
+        // Do nothing yet. Not sure about how this block wil be merged while freeing
+    }
+    //case 2: full split 
+    else{
+        // Exactly same as sodt split. Look for refactoring opportunities
+        new_block = NEXT_META_BLOCK_BY_SIZE(block);
+        new_block->block_size = remaining_size - sizeof(block_meta_data_t);
+        new_block->is_free = MM_TRUE;
+        new_block->next = block->next;
+        new_block->previous = block;
+        block->next = new_block;
+        if(new_block->next){
+            new_block->next->previous = new_block;
+        }
+        new_block->offset = block->offset + sizeof(block_meta_data_t) + block->block_size;
+        add_free_meta_data_block_to_free_block_list(vm_page_family,new_block);
+    }
+    return MM_TRUE;
+}
+
+
+static block_meta_data_t* mm_allocate_free_data_block(vm_page_family_t* vm_page_family,int size){
+    vm_bool_t status = MM_FALSE;
+    vm_page_t * vm_page = NULL;
+    block_meta_data_t* largest_free_block = mm_get_biggest_free_block_page_family(vm_page_family);
+    if(!largest_free_block || largest_free_block->block_size < size){ // add new vm page
+        vm_page = allocate_vm_page(vm_page_family);
+        // Allocate free memory now
+        status = mm_split_free_data_block_for_allocation(vm_page_family,
+                                                        &vm_page->block_meta_data,size);
+        if(status = MM_TRUE){
+            return &vm_page->block_meta_data;
+        }
+        return NULL;
+    }
+    // Biggest existing block can satisfy the need of the application.
+    if(largest_free_block){
+        status = mm_split_free_data_block_for_allocation(vm_page_family,
+                                                        largest_free_block,size);
+    }
+    if(status = MM_TRUE){
+        return largest_free_block;
+    }
+    return NULL;
+}
+
+
+void* xcalloc(char* struct_name,uint32_t units){
+    vm_page_family_t* vm_page_family = lookup_page_family_by_name(struct_name);
+    if(vm_page_family == NULL){
+        printf("Error!Structure %s is not registered with the memory manager\n",struct_name);
+        return NULL;
+    }
+    if(units*vm_page_family->struct_size > mm_max_page_allocatable_memory(1)){
+        printf("Error! Memory required is more than page size\n");
+        return NULL;
+    }
+    block_meta_data_t*  free_block_meta_data = NULL;
+    free_block_meta_data = mm_allocate_free_data_block(vm_page_family,units*vm_page_family->struct_size);
+    if(free_block_meta_data){
+        memset((char*)(free_block_meta_data+1),0,free_block_meta_data->block_size);
+        return (void*)(free_block_meta_data+1);
+    }
+    return NULL;
+}
+
+// void print_heap_memory_state(){
+//         while(current_page){
+//         ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
+//             printf("Struct name: %s Struct size: %d\n",current_family->struct_name,
+//                    current_family->struct_size);
+        
+//         }ITERATE_PAGE_FAMILIES_END;
+//         current_page = current_page->next;
 //     }
 // }
