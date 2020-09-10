@@ -33,9 +33,12 @@ int main(int argc,char** argv){
     else{
         printf("%s is not found\n",struct_to_find);
     }
-    emp_t * emp1 = XCALLOC(1,emp_t);
-    emp1->emp_number = 10;
-    strncpy(emp1->name,"Deepak",64);
-    printf("Emp no %d   name %s",emp1->emp_number,emp1->name);
+    for(int i = 0;i<1000000;i++){
+            emp_t * emp1 = XCALLOC(1,emp_t);
+            emp1->emp_number = i;
+            strncpy(emp1->name,"Deepak",64);
+            printf("Emp no %d   name %s\n",emp1->emp_number,emp1->name);
+    }
+
     return 0;
 }
