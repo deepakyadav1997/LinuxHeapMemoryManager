@@ -38,7 +38,7 @@ struct vm_page;
         next = current->next;
 
 #define ITERATE_VM_PAGE_END }}
-#define offset_of(container_structure, field_name)  (uint32_t)&(((container_structure *)NULL)->field_name)
+#define offset_of(container_structure, field_name)  (intptr_t)&(((container_structure *)NULL)->field_name)
 
 #define MM_GET_PAGE_FROM_META_BLOCK(block_meta_data_ptr)                              \
     (void*)((char*)block_meta_data_ptr - block_meta_data_ptr->offset)
