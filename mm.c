@@ -82,17 +82,7 @@ void mm_instantiate_new_page_family(char* struct_name, uint32_t size){
         return;
     }
 }
-void mm_print_registered_page_families(){
-    vm_page_for_families_t *current_page = first_vm_page_for_families;
-    vm_page_family_t *current_family = NULL;
-    while(current_page){
-        ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
-            printf("Struct name: %s Struct size: %d\n",current_family->struct_name,
-                   current_family->struct_size);
-        }ITERATE_PAGE_FAMILIES_END;
-        current_page = current_page->next;
-    }
-}
+
 vm_page_family_t * lookup_page_family_by_name(char *struct_name){
      vm_page_for_families_t *current_page = first_vm_page_for_families;
     vm_page_family_t *current_family = NULL;
@@ -289,13 +279,30 @@ void* xcalloc(char* struct_name,uint32_t units){
     return NULL;
 }
 
-// void print_heap_memory_state(){
-//         while(current_page){
-//         ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
-//             printf("Struct name: %s Struct size: %d\n",current_family->struct_name,
-//                    current_family->struct_size);
-        
-//         }ITERATE_PAGE_FAMILIES_END;
-//         current_page = current_page->next;
-//     }
-// }
+void print_page_family_details(vm_page_family_t* vm_page_family){
+    //printf("Structure: %s    Size: %d\n",vm_page_family->struct_name,vm_page_family->struct_size);
+    vm_page_t* current_page = NULL;
+    ITERATE_VM_PAGE_BEGIN(vm_page_family,current_page){
+        printf("\tprevious = %x  next = %x\n",current_page->previous,current_page->next);
+        printf("\t\t%-20s %-10s %-10s %-10s %-6s %-20s %-20s\n","Address","Block No.","Allocated?","block_size","offset","previous","next");
+        block_meta_data_t* current_block = NULL;
+        int block_count = 0;
+        ITERATE_VM_PAGES_ALL_BLOCKS_BEGIN(current_page,current_block){
+            char* is_free = current_block->is_free==MM_TRUE?"Free":"Allocated";
+            printf("\t\t%-20x %-10d %-10s %-10d %-6d %-20x %-20x\n",
+                    current_block,++block_count,is_free,current_block->block_size,current_block->offset,current_block->previous,current_block->next);
+        }ITERATE_VM_PAGES_ALL_BLOCKS_END;
+    }ITERATE_VM_PAGE_END;
+}
+void mm_print_registered_page_families(){
+    vm_page_for_families_t *current_page = first_vm_page_for_families;
+    vm_page_family_t *current_family = NULL;
+    while(current_page){
+        ITERATE_PAGE_FAMILIES_BEGIN(current_page,current_family){
+            printf("Struct name: %s Struct size: %d\n",current_family->struct_name,
+                   current_family->struct_size);
+            print_page_family_details(current_family);
+        }ITERATE_PAGE_FAMILIES_END;
+        current_page = current_page->next;
+    }
+}

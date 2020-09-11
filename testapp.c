@@ -9,7 +9,7 @@ typedef struct employee{
 }emp_t;
 
 typedef struct student{
-    char name[64];
+    char name[1064];
     uint32_t roll_number;
     uint32_t marks_physics;
     uint32_t marks_chemistry;
@@ -25,7 +25,6 @@ int main(int argc,char** argv){
     // return 0;
     MM_REGISTER_STRUCT(emp_t);
     MM_REGISTER_STRUCT(student_t);
-    mm_print_registered_page_families();
     char* struct_to_find = "avc";
     if(lookup_page_family_by_name(struct_to_find)){
         printf("%s is found\n",struct_to_find);
@@ -33,12 +32,19 @@ int main(int argc,char** argv){
     else{
         printf("%s is not found\n",struct_to_find);
     }
-    for(int i = 0;i<1000000;i++){
+    for(int i = 0;i<5;i++){
             emp_t * emp1 = XCALLOC(1,emp_t);
             emp1->emp_number = i;
             strncpy(emp1->name,"Deepak",64);
-            printf("Emp no %d   name %s\n",emp1->emp_number,emp1->name);
+            //printf("Emp no %d   name %s\n",emp1->emp_number,emp1->name);
     }
-
+        for(int i = 0;i<4;i++){
+            student_t * s1 = XCALLOC(1,student_t);
+            s1->marks_chemistry = i;
+            strncpy(s1->name,"Deepak",64);
+            //printf("Chemistry no %d   name %s\n",emp1->emp_number,emp1->name);
+    }
+    printf("%d\n",sizeof(glthread_t));
+    mm_print_registered_page_families();
     return 0;
 }

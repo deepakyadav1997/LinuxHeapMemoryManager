@@ -3,6 +3,14 @@
 #define __MM__
 #define MM_MAX_STRUCT_NAME_SIZE 64
 #include "glthreads_lib/glthread.h"
+#define NORMAL  "\x1B[0m"
+#define RED  "\x1B[31m"
+#define GREEN  "\x1B[32m"
+#define YELLOW  "\x1B[33m"
+#define BLUE  "\x1B[34m"
+#define MAGENTA  "\x1B[35m"
+#define CYAN  "\x1B[36m"
+#define WHITE  "\x1B[37m"
 
 typedef enum{
     MM_FALSE,
@@ -24,9 +32,9 @@ struct vm_page;
 
 #define ITERATE_VM_PAGE_BEGIN(vm_page_family_ptr,current)                             \
 {                                                                                     \
-    vm_page_family_t *next = NULL;                                                    \
+    vm_page_t *next = NULL;                                                    \
     for(current = vm_page_family_ptr->first_page;                                     \
-        current != null; current = next){                                             \
+        current != NULL; current = next){                                             \
         next = current->next;
 
 #define ITERATE_VM_PAGE_END }}
@@ -59,9 +67,9 @@ struct vm_page;
 
 #define ITERATE_VM_PAGES_ALL_BLOCKS_BEGIN(vm_page_ptr,current)               \
 {                                                                            \
-    for(block_meta_data_t* current = vm_page_ptr->block_meta_data;           \
-        block_meta_data_t *next = NULL;                                      \
-        current != null; current = next){                                    \
+    block_meta_data_t *next = NULL;                                          \
+    for(block_meta_data_t* current = &vm_page_ptr->block_meta_data;           \
+        current != NULL; current = next){                                    \
         next = NEXT_META_BLOCK(current);
 
  #define ITERATE_VM_PAGES_ALL_BLOCKS_END }}  
@@ -101,4 +109,6 @@ vm_bool_t mm_is_vm_page_empty(vm_page_t* vm_page);
 vm_page_t* allocate_vm_page(vm_page_family_t* vm_page_family);
 void mm_vm_page_delete_and_free(vm_page_t* vm_page);
 
+//printing functions
+void print_page_family_details(vm_page_family_t* vm_page_family);
 #endif
