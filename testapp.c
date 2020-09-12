@@ -32,19 +32,25 @@ int main(int argc,char** argv){
     else{
         printf("%s is not found\n",struct_to_find);
     }
+    printf("offset %d\n",sizeof(vm_page_t)-sizeof(block_meta_data_t));
+    emp_t * emp1 = NULL;
+    student_t * s1 = NULL;
     for(int i = 0;i<5;i++){
-            emp_t * emp1 = XCALLOC(1,emp_t);
+            emp1 = XCALLOC(1,emp_t);
             emp1->emp_number = i;
             strncpy(emp1->name,"Deepak",64);
             //printf("Emp no %d   name %s\n",emp1->emp_number,emp1->name);
     }
         for(int i = 0;i<4;i++){
-            student_t * s1 = XCALLOC(1,student_t);
+            s1 = XCALLOC(1,student_t);
             s1->marks_chemistry = i;
             strncpy(s1->name,"Deepak",64);
             //printf("Chemistry no %d   name %s\n",emp1->emp_number,emp1->name);
     }
-    printf("%d\n",sizeof(glthread_t));
+    mm_print_registered_page_families();
+    xfree(emp1);
+    xfree(s1);
+    printf("\n************************************************************************\n");
     mm_print_registered_page_families();
     return 0;
 }

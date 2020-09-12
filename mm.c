@@ -134,7 +134,8 @@ vm_page_t* allocate_vm_page(vm_page_family_t* vm_page_family){
         new_vm_page->next = vm_page_family->first_page;
         vm_page_family->first_page->previous = new_vm_page;
     }
-    vm_page_family->first_page = new_vm_page;;
+    vm_page_family->first_page = new_vm_page;
+    //printf("%s",new_vm_page->page_family->struct_name);
     return new_vm_page;
 }
 void mm_vm_page_delete_and_free(vm_page_t* vm_page){
@@ -196,17 +197,12 @@ static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t* vm_pa
     }
     // Case 3: partial internal fragmentation, soft spilt
     if(sizeof(block_meta_data_t) < remaining_size 
-            && remaining_size < sizeof(block_meta_data_t) + vm_page_family->struct_size){
+            && remaining_size < (sizeof(block_meta_data_t) + vm_page_family->struct_size)){
         // New metablock
         new_block = NEXT_META_BLOCK_BY_SIZE(block);
         new_block->block_size = remaining_size - sizeof(block_meta_data_t);
         new_block->is_free = MM_TRUE;
-        new_block->next = block->next;
-        new_block->previous = block;
-        block->next = new_block;
-        if(new_block->next){
-            new_block->next->previous = new_block;
-        }
+        mm_bind_blocks_for_allocation(block,new_block);
         new_block->offset = block->offset + sizeof(block_meta_data_t) + block->block_size;
         add_free_meta_data_block_to_free_block_list(vm_page_family,new_block);
         
@@ -217,16 +213,11 @@ static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t* vm_pa
     }
     //case 2: full split 
     else{
-        // Exactly same as sodt split. Look for refactoring opportunities
+        // Exactly same as soft split. Look for refactoring opportunities
         new_block = NEXT_META_BLOCK_BY_SIZE(block);
         new_block->block_size = remaining_size - sizeof(block_meta_data_t);
         new_block->is_free = MM_TRUE;
-        new_block->next = block->next;
-        new_block->previous = block;
-        block->next = new_block;
-        if(new_block->next){
-            new_block->next->previous = new_block;
-        }
+        mm_bind_blocks_for_allocation(block,new_block);
         new_block->offset = block->offset + sizeof(block_meta_data_t) + block->block_size;
         add_free_meta_data_block_to_free_block_list(vm_page_family,new_block);
     }
@@ -243,6 +234,7 @@ static block_meta_data_t* mm_allocate_free_data_block(vm_page_family_t* vm_page_
         // Allocate free memory now
         status = mm_split_free_data_block_for_allocation(vm_page_family,
                                                         &vm_page->block_meta_data,size);
+        printf("Inside mm_allocate 1 %s\n",vm_page->page_family->struct_name);
         if(status = MM_TRUE){
             return &vm_page->block_meta_data;
         }
@@ -254,8 +246,10 @@ static block_meta_data_t* mm_allocate_free_data_block(vm_page_family_t* vm_page_
                                                         largest_free_block,size);
     }
     if(status = MM_TRUE){
+        //printf("Inside mm_allocate 2 %s\n",vm_page->page_family->struct_name);
         return largest_free_block;
     }
+
     return NULL;
 }
 
@@ -272,8 +266,11 @@ void* xcalloc(char* struct_name,uint32_t units){
     }
     block_meta_data_t*  free_block_meta_data = NULL;
     free_block_meta_data = mm_allocate_free_data_block(vm_page_family,units*vm_page_family->struct_size);
+     vm_page_t* page = MM_GET_PAGE_FROM_META_BLOCK(free_block_meta_data);
     if(free_block_meta_data){
+       // printf("In xcalloc %d\n",page->page_family->struct_size);
         memset((char*)(free_block_meta_data+1),0,free_block_meta_data->block_size);
+        //printf("In xcalloc %d\n",page->page_family->struct_size);
         return (void*)(free_block_meta_data+1);
     }
     return NULL;
@@ -289,6 +286,7 @@ void print_page_family_details(vm_page_family_t* vm_page_family){
         int block_count = 0;
         ITERATE_VM_PAGES_ALL_BLOCKS_BEGIN(current_page,current_block){
             char* is_free = current_block->is_free==MM_TRUE?"Free":"Allocated";
+            //printf("vm page family%d\n",current_page->page_family->struct_size);
             printf("\t\t%-20x %-10d %-10s %-10d %-6d %-20x %-20x\n",
                     current_block,++block_count,is_free,current_block->block_size,current_block->offset,current_block->previous,current_block->next);
         }ITERATE_VM_PAGES_ALL_BLOCKS_END;
@@ -305,4 +303,55 @@ void mm_print_registered_page_families(){
         }ITERATE_PAGE_FAMILIES_END;
         current_page = current_page->next;
     }
+}
+
+static int mm_get_hard_internal_memory_frag_size(block_meta_data_t* first,block_meta_data_t* second){
+    block_meta_data_t* next =  NEXT_META_BLOCK_BY_SIZE(first);
+    return (uint32_t)((unsigned long)second - (unsigned long)next);
+}
+
+
+static block_meta_data_t* mm_free_data_blocks(block_meta_data_t* meta_block){
+    block_meta_data_t* return_block = NULL;
+    assert(meta_block->is_free == MM_FALSE);
+    vm_page_t* vm_page_of_meta_block = MM_GET_PAGE_FROM_META_BLOCK(meta_block);
+    vm_page_family_t* page_family_of_block = vm_page_of_meta_block->page_family;
+    //printf("page family %d",page_family_of_block->free_blocks_queue_head);
+
+    meta_block->is_free = MM_TRUE;
+    // Handling hard internal fragmentation
+    if(meta_block->next){
+        //adjust the block size of the newly freed block to accomodate following hard fragmentations
+        meta_block->block_size += mm_get_hard_internal_memory_frag_size(meta_block,meta_block->next);
+    }
+    else{   // Last meta block in the upper page boundary, No next block to directly calculate the size of hard fragmentation
+        
+        //Step1: Get end address of vm page
+        char* end_address_of_vm_page = (char*)((char*)vm_page_of_meta_block + SYSTEM_PAGE_SIZE);
+        //Step2: Get end address of last data block
+        char* end_address_of_last_data_block = (char*)(meta_block+1)+meta_block->block_size;
+        int hard_fragmentation = (int)((unsigned long)end_address_of_vm_page - (unsigned long)end_address_of_last_data_block);
+        meta_block->block_size += hard_fragmentation;
+    }
+    if(meta_block->next && meta_block->next->is_free == MM_TRUE){
+        mm_union_free_blocks(meta_block,meta_block->next);
+        return_block = meta_block;
+    }
+    if(meta_block->previous && meta_block->previous->is_free == MM_TRUE){
+         mm_union_free_blocks(meta_block->previous,meta_block);
+         return_block = meta_block->previous;
+    }
+    if(mm_is_vm_page_empty(vm_page_of_meta_block) == MM_TRUE){
+        mm_vm_page_delete_and_free(vm_page_of_meta_block);
+        return NULL;
+    }
+    add_free_meta_data_block_to_free_block_list(page_family_of_block,return_block);
+    return return_block;
+}
+
+
+void xfree(void* app_data){
+    block_meta_data_t* block_meta_data = (block_meta_data_t*)((char*)app_data - sizeof(block_meta_data_t));
+    assert(block_meta_data->is_free == MM_FALSE);
+    mm_free_data_blocks(block_meta_data);
 }

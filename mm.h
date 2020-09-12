@@ -41,7 +41,7 @@ struct vm_page;
 #define offset_of(container_structure, field_name)  (intptr_t)&(((container_structure *)NULL)->field_name)
 
 #define MM_GET_PAGE_FROM_META_BLOCK(block_meta_data_ptr)                              \
-    (void*)((char*)block_meta_data_ptr - block_meta_data_ptr->offset)
+    (vm_page_t*)((char*)block_meta_data_ptr - block_meta_data_ptr->offset)
 
 #define NEXT_META_BLOCK(block_meta_data_ptr)                                          \
     block_meta_data_ptr->next
@@ -100,9 +100,9 @@ GLTHREAD_TO_STRUCT(glthread_to_block_meta_data,block_meta_data_t,priority_queue_
 typedef struct vm_page{
     struct vm_page* previous;
     struct vm_page* next;
+    vm_page_family_t* page_family; 
     block_meta_data_t block_meta_data; // Not a pointer but struct itself to allocate memory
-    char page_memory[0];  // first data block in VM page
-    vm_page_family_t* page_family;    
+    char page_memory[0];  // first data block in VM page   
 }vm_page_t;
 
 vm_bool_t mm_is_vm_page_empty(vm_page_t* vm_page);
