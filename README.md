@@ -5,4 +5,5 @@ Implementation of a library for the allocation and deallocation of heap memory b
 
 To run with the sample app:
 Step 1: make
+
 Step 2: ./exe
