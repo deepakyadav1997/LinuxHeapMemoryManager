@@ -16,6 +16,7 @@ void mm_init(){
 
 //Function to request Virtual Memory page from the kernel
 static void* mm_get_new_vm_page_from_kernel(int units){
+    // Refer mmap man pages for more details on the system call
     char* vm_page =  mmap(
             0,
             units*SYSTEM_PAGE_SIZE,
@@ -31,7 +32,8 @@ static void* mm_get_new_vm_page_from_kernel(int units){
 }
 //Function to return the vm pages back to the kernel
 static void mm_return_vm_page_to_kernel(void* vm_page,int units){
-    if(munmap(vm_page,units*SYSTEM_PAGE_SIZE)){ // if it return 0;
+    int result_of_unmap = munmap(vm_page,units*SYSTEM_PAGE_SIZE);
+    if(result_of_unmap != 0){ // if it returns error;
         printf("Error! Could not munmap the given virtual memory pages\n");
     }
 }
